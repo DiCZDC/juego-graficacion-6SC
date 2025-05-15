@@ -12,10 +12,8 @@ import javax.swing.JPanel;
 
 
 public class ImagePanel extends JPanel{
-    //private BufferedImage image;
     private Vector <Background_image> images = new Vector<Background_image>();
     private int scale = 2;
-    private int x = 0, y = 0; 
 
 
     private class Background_image{
@@ -30,12 +28,7 @@ public class ImagePanel extends JPanel{
             this.scale = scale;
             this.speed_p_s = speed_p_s;
         }
-        public int getWidth(){
-            return image.getWidth();
-        }
-        public int getX(){
-            return x;
-        }
+        
         private void move_image(){
             x += speed_p_s;
             x = x % (image.getWidth()*scale); // Wrap around the image
@@ -71,7 +64,7 @@ public class ImagePanel extends JPanel{
         for(Background_image layer : images){
             BufferedImage image = layer.getBufferedImage();
             for (int i = 0; i < 4; i++)
-                g.drawImage(image, layer.getX() + (image.getWidth() * scale * i), y, image.getWidth() * scale, image.getHeight() * scale, this);
+                g.drawImage(image, layer.x + (image.getWidth() * scale * i), layer.y, image.getWidth() * scale, image.getHeight() * scale, this);
         }
     }
 
