@@ -29,6 +29,8 @@ public class ImagePanel extends JPanel{
             this.speed_p_s = speed_p_s;
         }
         
+
+
         private void move_image(){
             x += speed_p_s;
             x = x % (image.getWidth()*scale); // Wrap around the image
@@ -37,6 +39,8 @@ public class ImagePanel extends JPanel{
             return image;
         }
     } 
+    
+    
     public void update_images(){
         for(Background_image image : images)
             image.move_image();
@@ -54,9 +58,7 @@ public class ImagePanel extends JPanel{
        }
     }
     
-    public void setScale(int scale) {
-        this.scale = scale;
-    }
+    
 
     @Override
     protected void paintComponent(Graphics g) {
