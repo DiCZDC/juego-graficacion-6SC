@@ -40,9 +40,9 @@ public class ImagePanel extends JPanel{
         
 
 
-        private void move_image(){
-            x += speed_p_s;
-            x = x % (image.getWidth()*scale); // Wrap around the image
+        private void move_image() {
+            x += speed_p_s * gameSpeed;
+            x = x % (image.getWidth()*scale);
         }
         public BufferedImage getBufferedImage(){
             return image;
@@ -55,42 +55,28 @@ public class ImagePanel extends JPanel{
             image.move_image();
     }
 
-    // Modificar la declaración de personajeSprites para manejar múltiples frames por estado
-    private BufferedImage[][] personajeSprites; // [estado][frame]
-    private int frameActual = 0;
-    private static final int FRAMES_PER_STATE = 5; // Número de frames por estado de animación
-    private int personajeEstado = 0; // 0: correr, 1: saltar, 2: atacar, 3: agachado
-    private boolean atacando = false;
-    private int personajeX, personajeY;
-    private int personajeYBase;
-    private boolean saltando = false;
-    private boolean agachado = false;
-    private boolean isPaused=false;
-    
-
-    // Cargar sprites del personaje
-    private void cargarPersonajeSprites() throws IOException {
-        SpriteLoader spriteLoader = new SpriteLoader("/Sprite_graficacion/Azteca8.png", 74, 82, 2, 7);
-        SpriteLoader spriteLoader2 = new SpriteLoader("/Sprite_graficacion/Azteca9.png", 74, 82, 1, 7);
-        personajeSprites = new BufferedImage[4][]; // Aumentamos a 4 estados
-        personajeSprites[0] = spriteLoader.getAnimation(0); // Animación de correr (frames 1-6)
-        personajeSprites[1] = spriteLoader.getAnimation(1); // Animación de salto
-        //personajeSprites[2] = spriteLoader.getAnimation(2); // Animación de ataque
-        personajeSprites[3] = spriteLoader2.getAnimation(0); // Animación de agacharse
-    }
+    private Personaje personaje;
+    private boolean isPaused = false;
+    private PanelVida panelVida;
 
     // Modifica el constructor para cargar los sprites y agregar el KeyListener
     public ImagePanel(int scale) {
         this.scale = scale;
+        gameStartTime = System.currentTimeMillis();
+        setLayout(null); // Para poder posicionar el panel de vidas
+        
+        // Crear y agregar el panel de vidas
+        panelVida = new PanelVida();
+        panelVida.setBounds(10, 10, 150, 40);
+        add(panelVida);
+        
         try {                
             images.add(new Background_image(loadImage("/assets/background/sky.png"), scale, 0));
             images.add(new Background_image(loadImage("/assets/background/clouds_bg.png"), scale, -2));
             images.add(new Background_image(loadImage("/assets/background/glacial_mountains.png"), scale, -5));
             images.add(new Background_image(loadImage("/assets/background/clouds_mg_1.png"), scale, -6));
-            cargarPersonajeSprites();
-            personajeX = 200;
-            personajeYBase = 400;
-            personajeY = personajeYBase;
+
+            personaje = new Personaje(scale, 200, 400);
         } catch (IOException ex) {
             System.out.println("Error: " + ex);
         }
@@ -100,32 +86,24 @@ public class ImagePanel extends JPanel{
         addKeyListener(new KeyAdapter() {
             @Override
             public void keyPressed(KeyEvent e) {
-                if (e.getKeyCode() == KeyEvent.VK_W && !saltando) {
-                    saltando = true;
-                    personajeEstado = 1;
-                    frameActual = 0;
+                if (e.getKeyCode() == KeyEvent.VK_W) {
+                    personaje.saltar();
                 }
-                if (e.getKeyCode() == KeyEvent.VK_S && !saltando) {
-                    agachado = true;
-                    personajeEstado = 3; // Cambiamos a 3 para agacharse
-                    frameActual = 0;
+                if (e.getKeyCode() == KeyEvent.VK_S) {
+                    personaje.agacharse();
                 }
-                if (e.getKeyCode() == KeyEvent.VK_A && !saltando && !agachado && !atacando) {
-                    atacando = true;
-                    personajeEstado = 2;
-                    frameActual = 0;
+                if (e.getKeyCode() == KeyEvent.VK_A) {
+                    personaje.atacar();
                 }
-                if (e.getKeyCode() == KeyEvent.VK_SPACE ) {
-                    isPaused=!isPaused;
+                if (e.getKeyCode() == KeyEvent.VK_SPACE) {
+                    isPaused = !isPaused;
                 }
             }
             
             @Override
             public void keyReleased(KeyEvent e) {
                 if (e.getKeyCode() == KeyEvent.VK_S) {
-                    agachado = false;
-                    personajeEstado = 0;
-                    frameActual = 0;
+                    personaje.dejarDeAgacharse();
                 }
             }
         });
@@ -146,7 +124,7 @@ public class ImagePanel extends JPanel{
     private ArrayList<Question> questions = new ArrayList<>();
     private Timer obstacleTimer;
     private Random random = new Random();
-    private int vidas = 3;
+    
     
 
     private void initializeQuestions() {
@@ -169,21 +147,21 @@ public class ImagePanel extends JPanel{
                 // Verificar si hay obstáculos existentes muy cercanos
                 boolean canSpawn = true;
                 for (Obstacle obstacle : obstacles) {
-                    if (obstacle.getX() > getWidth() - MIN_OBSTACLE_DISTANCE) {
+                    if (obstacle.getX() > getWidth() - (MIN_OBSTACLE_DISTANCE / gameSpeed)) {
                         canSpawn = false;
                         break;
                     }
                 }
 
                 if (canSpawn) {
-                    // Alternar entre obstáculos altos y bajos
                     boolean isHigh = random.nextBoolean();
-                   
-                    // Crear nuevo obstáculo
                     obstacles.add(new Obstacle(getWidth(), isHigh));
                 }
             }
         });
+        
+        // Ajustar el delay del timer basado en la velocidad del juego
+        obstacleTimer.setDelay((int)(2000 / gameSpeed));
         obstacleTimer.start();
     }
 
@@ -193,12 +171,14 @@ public class ImagePanel extends JPanel{
         for(Background_image layer : images){
             BufferedImage image = layer.getBufferedImage();
             for (int i = 0; i < 6; i++)
-                g.drawImage(image, layer.x + (image.getWidth() * scale * i), layer.y, image.getWidth() * scale, image.getHeight() * scale, this);
+                g.drawImage(image, layer.x + (image.getWidth() * scale * i), layer.y, 
+                           image.getWidth() * scale, image.getHeight() * scale, this);
         }
         // Dibuja el personaje
-        if (personajeSprites[personajeEstado] != null) {
-            g.drawImage(personajeSprites[personajeEstado][frameActual], personajeX, personajeY, personajeSprites[personajeEstado][frameActual].getWidth() * scale, personajeSprites[personajeEstado][frameActual].getHeight() * scale, this);
-        }
+        BufferedImage spriteActual = personaje.getSprite();
+        g.drawImage(spriteActual, personaje.getX(), personaje.getY(), 
+                    spriteActual.getWidth() * personaje.getScale(), 
+                    spriteActual.getHeight() * personaje.getScale(), this);
         
         // Dibujar obstáculos
         for (Obstacle obstacle : obstacles) {
@@ -206,40 +186,33 @@ public class ImagePanel extends JPanel{
             g.fillRect(obstacle.getX(), obstacle.getY(), 
                       obstacle.getWidth(), obstacle.getHeight());
         }
-        
-        // Dibujar vidas
-        g.setColor(Color.red);
-        g.drawString("Vidas: " + vidas, 20, 20);
+        System.out.println(gameSpeed);
     }
 
+    // Actualizar el método checkCollisions
     private void checkCollisions() {
+        BufferedImage spriteActual = personaje.getSprite();
         Rectangle playerBounds = new Rectangle(
-            personajeX, 
-            personajeY, 
-            personajeSprites[personajeEstado][frameActual].getWidth() * scale,
-            personajeSprites[personajeEstado][frameActual].getHeight() * scale
+            personaje.getX(), 
+            personaje.getY(), 
+            spriteActual.getWidth() * personaje.getScale(),
+            spriteActual.getHeight() * personaje.getScale()
         );
 
         for (Obstacle obstacle : new ArrayList<>(obstacles)) {
             if (playerBounds.intersects(obstacle.getBounds())) {
                 boolean colision = false;
                 
-                // Lógica para obstáculos altos
                 if (obstacle.isHigh()) {
-                    // Si el personaje NO está agachado cuando hay obstáculo alto = colisión
-                    if (!agachado) {
+                    if (!personaje.isAgachado()) {
                         colision = true;
                     }
-                } 
-                // Lógica para obstáculos bajos
-                else {
-                    // Si el personaje NO está saltando cuando hay obstáculo bajo = colisión
-                    if (!saltando) {
+                } else {
+                    if (!personaje.isSaltando()) {
                         colision = true;
                     }
                 }
 
-                // Solo muestra la pregunta si hubo colisión
                 if (colision) {
                     mostrarPregunta();
                     obstacles.remove(obstacle);
@@ -248,6 +221,7 @@ public class ImagePanel extends JPanel{
         }
     }
 
+    // Actualizar el método mostrarPregunta para usar el panel de vidas
     private void mostrarPregunta() {
         Question question = questions.get(random.nextInt(questions.size()));
         String[] opciones = question.getOpciones();
@@ -264,17 +238,19 @@ public class ImagePanel extends JPanel{
         );
 
         if (!question.checkAnswer(respuesta)) {
-            vidas--;
-            if (vidas <= 0) {
+            personaje.perderVida();
+            panelVida.setVidas(personaje.getVidas()); // Actualizar panel de vidas
+            if (personaje.getVidas() <= 0) {
                 JOptionPane.showMessageDialog(this, "¡Juego terminado!");
                 System.exit(0);
             }
         }
     }
 
-    public void move_background(){
+    public void move_background() {
         while (true) {
             if (!isPaused) {
+                updateGameSpeed(); // Actualizar la velocidad del juego
                 update_images();
                 repaint();
             }
@@ -290,44 +266,33 @@ public class ImagePanel extends JPanel{
     // Hilo para animar el personaje
     public void moverPersonaje() {
         long lastTime = System.currentTimeMillis();
-        int frameDelay = 100;
-        int saltoPosicion = 0; // Para controlar la posición del salto
+        int frameDelay = 80;
+        int saltoPosicion = 0;
+        boolean completandoSalto = false;
 
         while (true) {
             if (!isPaused) {
                 long currentTime = System.currentTimeMillis();
                 
+                // Actualizar animación del personaje
                 if (currentTime - lastTime > frameDelay) {
-                    if (personajeEstado == 0) {
-                        frameActual = (frameActual + 1) % 6;
-                    } else {
-                        frameActual = (frameActual + 1) % personajeSprites[personajeEstado].length;
-                        
-                        if (atacando && frameActual == 0) {
-                            atacando = false;
-                            personajeEstado = 0;
-                        }
-                    }
+                    personaje.actualizar(frameDelay);
                     lastTime = currentTime;
                 }
 
-                if (saltando) {
-                    // Nuevo sistema de salto que respeta la pausa
-                    if (saltoPosicion < 30) {
-                        personajeY -= 5;
-                    } else if (saltoPosicion < 60) {
-                        personajeY += 5;
-                    } else {
-                        personajeY = personajeYBase;
-                        saltando = false;
-                        personajeEstado = 0;
-                        saltoPosicion = -1; // Se reinicia en la siguiente iteración
-                    }
+                // Actualizar salto si está saltando
+                if (personaje.isSaltando() || completandoSalto) {
+                    personaje.actualizarSalto(saltoPosicion);
                     saltoPosicion++;
-                    repaint();
-                    try { 
-                        Thread.sleep(0); 
-                    } catch (InterruptedException e) { }
+                    
+                    // Si el salto completa su ciclo
+                    if (saltoPosicion >= 60) {
+                        saltoPosicion = 0;
+                        completandoSalto = false;
+                        personaje.finalizarSalto(); // Necesitamos agregar este método en la clase Personaje
+                    } else {
+                        completandoSalto = true;
+                    }
                 }
 
                 // Mover obstáculos
@@ -342,10 +307,26 @@ public class ImagePanel extends JPanel{
                 repaint();
             }
             try { 
-                Thread.sleep(10); 
-            } catch (InterruptedException e) { }
+                Thread.sleep(16); // Aproximadamente 60 FPS
+            } catch (InterruptedException e) {
+                Thread.currentThread().interrupt();
+                break;
+            }
         }
     }
     
+    private static final float SPEED_INCREMENT = 0.1f;
+    private static final float MAX_SPEED = 5.0f;
+    private float gameSpeed = 1.0f;
+    private long gameStartTime;
+    private static final int SPEED_INCREASE_INTERVAL = 5000; // 10 segundos
     
+    private void updateGameSpeed() {
+        long currentTime = System.currentTimeMillis();
+        long elapsedTime = currentTime - gameStartTime;
+        
+        // Aumentar la velocidad cada SPEED_INCREASE_INTERVAL milisegundos
+        float newSpeed = 1.0f + (elapsedTime / SPEED_INCREASE_INTERVAL) * SPEED_INCREMENT;
+        gameSpeed = Math.min(newSpeed, MAX_SPEED);
+    }
 }

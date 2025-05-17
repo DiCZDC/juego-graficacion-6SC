@@ -8,20 +8,20 @@ public class Obstacle {
     private int width;
     private int height;
     private boolean isHigh; // true para obstáculos altos, false para bajos
-    private int speed = 5;
-    private int personajeYBase=400;
+    private static final int BASE_SPEED = 5;
+    private int personajeYBase=445;
     
     public Obstacle(int x, boolean isHigh) {
         this.x = x;
         this.isHigh = isHigh;
         this.width = 50;
-        this.height = isHigh ? 80 : 40;
+        this.height = isHigh ? 55 : 60;
         // Ajustamos las posiciones Y según el tipo de obstáculo
         this.y = isHigh ? personajeYBase - 80 : personajeYBase + 40; // Ajusta estos valores
     }
 
     public void move() {
-        x -= speed;
+        x -= BASE_SPEED; // Usar la velocidad del juego
     }
 
     public boolean isOffScreen() {
