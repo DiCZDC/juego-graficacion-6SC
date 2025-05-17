@@ -2,12 +2,10 @@ package anim;
 
 import java.awt.Graphics;
 import java.awt.image.BufferedImage;
-import java.io.File;
-import java.io.IOException;
+import java.io.*;
 import java.util.Vector;
 import javax.imageio.ImageIO;
-import javax.swing.JFrame;
-import javax.swing.JPanel;
+import javax.swing.*;
 
 
 
@@ -57,9 +55,10 @@ public class ImagePanel extends JPanel{
           System.out.println("Error: " + ex);
        }
     }
-    
-    
-
+    public void setBackgroundSpeed(Vector<Integer> speed){
+        for(Background_image image : images)
+            image.speed_p_s = speed.get(images.indexOf(image));
+    }
     @Override
     protected void paintComponent(Graphics g) {
         super.paintComponent(g);
@@ -70,8 +69,6 @@ public class ImagePanel extends JPanel{
         }
     }
 
-    
-    
     public void move_background(){
         while (true) {
                 update_images(); // Puedes ajustar la velocidad aquí
@@ -84,7 +81,25 @@ public class ImagePanel extends JPanel{
                 }
         }
     }
-    
+    public void stop_background(int time_s){
+        long startTime = System.currentTimeMillis();
+        while (true) {
+            update_images(); // Puedes ajustar la velocidad aquí
+            repaint();
+            for (Background_image image : images)
+                image.speed_p_s = Math.max(image.speed_p_s-1, 0);
+            try {
+            Thread.sleep(1000 / 60);
+            } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+            break;
+            }
+            if ((System.currentTimeMillis() - startTime) >= time_s * 1000) {
+            break;
+            }
+        }
+    }
+
     public static void main(String[] args) {
         // Create a new instance of the MainWindow class
         JFrame frame = new JFrame("Proyecto final");
@@ -97,8 +112,15 @@ public class ImagePanel extends JPanel{
         
         new Thread(() -> {
             ImagePanel panel = (ImagePanel) frame.getContentPane().getComponent(0);
-            panel.move_background(); // Puedes ajustar la velocidad aquí
+            panel.move_background();
         }).start();
+        System.out.println("Background started");
+        try {
+            Thread.sleep(5000);
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+        }
+        ((ImagePanel) frame.getContentPane().getComponent(0)).stop_background(3);
 
     }
 }
