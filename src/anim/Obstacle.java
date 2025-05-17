@@ -8,8 +8,9 @@ public class Obstacle {
     private int width;
     private int height;
     private boolean isHigh; // true para obstáculos altos, false para bajos
-    private static final int BASE_SPEED = 5;
+    private static final int BASE_SPEED = 4; // Reducido para mejor control
     private int personajeYBase=445;
+    private boolean hasCollided = false; // Para evitar colisiones múltiples
     
     public Obstacle(int x, boolean isHigh) {
         this.x = x;
@@ -37,4 +38,11 @@ public class Obstacle {
     public int getWidth() { return width; }
     public int getHeight() { return height; }
     public boolean isHigh() { return isHigh; }
+    public boolean hasCollided() {
+        return hasCollided;
+    }
+
+    public void setCollided() {
+        this.hasCollided = true;
+    }
 }

@@ -17,19 +17,21 @@ import javax.swing.Timer;
 import java.awt.event.KeyAdapter;
 import java.awt.event.KeyEvent;
 import javax.swing.JOptionPane;
+import javax.swing.SwingUtilities;
 
 
 
 public class ImagePanel extends JPanel{
     private Vector <Background_image> images = new Vector<Background_image>();
     private int scale = 2;
-
+    
 
     private class Background_image{
         private int x=0;
         private int y=0;
         private int speed_p_s;
         private BufferedImage image;
+        
         private int scale;
         
         public Background_image(BufferedImage image, int scale,int speed_p_s){
@@ -108,7 +110,7 @@ public class ImagePanel extends JPanel{
             }
         });
         
-        initializeQuestions();
+       
         initializeObstacleTimer();
     }
 
@@ -119,52 +121,77 @@ public class ImagePanel extends JPanel{
         }
         return ImageIO.read(is);
     }
+    private MQuestion questionM= new MQuestion();
     
     private ArrayList<Obstacle> obstacles = new ArrayList<>();
-    private ArrayList<Question> questions = new ArrayList<>();
+    
+    
     private Timer obstacleTimer;
     private Random random = new Random();
     
     
 
-    private void initializeQuestions() {
-        questions.add(new Question(
-            "¿Cuál es la capital de México?",
-            new String[]{"Ciudad de México", "Guadalajara", "Monterrey", "Puebla"},
-            0
-        ));
-        // Agrega más preguntas aquí
-    }
+    
 
     // Agregar nueva variable para controlar el tiempo mínimo entre obstáculos
-    private static final int MIN_OBSTACLE_DISTANCE = 300; // píxeles
+    private static final int MIN_OBSTACLE_DISTANCE = 400; // Aumentado para más espacio
+    private static final int BASE_SPAWN_DELAY = 3000; // 3 segundos base entre obstáculos
+    private static final int MIN_SPAWN_DELAY = 1500; // Mínimo delay permitido
     private long lastObstacleTime = 0;
     private boolean lastWasHigh = false;
 
     private void initializeObstacleTimer() {
-        obstacleTimer = new Timer(2000, e -> {
+        obstacleTimer = new Timer(BASE_SPAWN_DELAY, e -> {
             if (!isPaused) {
-                // Verificar si hay obstáculos existentes muy cercanos
+                long currentTime = System.currentTimeMillis();
+                // Verificar si ha pasado suficiente tiempo desde el último obstáculo
+                if (currentTime - lastObstacleTime < BASE_SPAWN_DELAY / gameSpeed) {
+                    return;
+                }
+
+                // Verificar si hay obstáculos muy cercanos
                 boolean canSpawn = true;
                 for (Obstacle obstacle : obstacles) {
-                    if (obstacle.getX() > getWidth() - (MIN_OBSTACLE_DISTANCE / gameSpeed)) {
+                    if (obstacle.getX() > getWidth() - MIN_OBSTACLE_DISTANCE) {
                         canSpawn = false;
                         break;
                     }
                 }
 
+                // Limitar el número máximo de obstáculos en pantalla
+                if (obstacles.size() >= 3) {
+                    canSpawn = false;
+                }
+
                 if (canSpawn) {
                     boolean isHigh = random.nextBoolean();
+                    // Evitar dos obstáculos altos seguidos
+                    if (isHigh && lastWasHigh) {
+                        isHigh = false;
+                    }
                     obstacles.add(new Obstacle(getWidth(), isHigh));
+                    lastWasHigh = isHigh;
+                    lastObstacleTime = currentTime;
                 }
             }
         });
         
-        // Ajustar el delay del timer basado en la velocidad del juego
-        obstacleTimer.setDelay((int)(2000 / gameSpeed));
+        // Ajustar el delay inicial
+        obstacleTimer.setDelay((int)(BASE_SPAWN_DELAY / gameSpeed));
         obstacleTimer.start();
     }
 
+    // Método para actualizar el timer según la velocidad del juego
+    private void updateObstacleTimer() {
+        if (obstacleTimer != null) {
+            int newDelay = Math.max(MIN_SPAWN_DELAY, 
+                                  (int)(BASE_SPAWN_DELAY / gameSpeed));
+            obstacleTimer.setDelay(newDelay);
+        }
+    }
+
+   
+    
     @Override
     protected void paintComponent(Graphics g) {
         super.paintComponent(g);
@@ -186,7 +213,7 @@ public class ImagePanel extends JPanel{
             g.fillRect(obstacle.getX(), obstacle.getY(), 
                       obstacle.getWidth(), obstacle.getHeight());
         }
-        System.out.println(gameSpeed);
+      
     }
 
     // Actualizar el método checkCollisions
@@ -200,7 +227,7 @@ public class ImagePanel extends JPanel{
         );
 
         for (Obstacle obstacle : new ArrayList<>(obstacles)) {
-            if (playerBounds.intersects(obstacle.getBounds())) {
+            if (!obstacle.hasCollided() && playerBounds.intersects(obstacle.getBounds())) {
                 boolean colision = false;
                 
                 if (obstacle.isHigh()) {
@@ -214,6 +241,7 @@ public class ImagePanel extends JPanel{
                 }
 
                 if (colision) {
+                    obstacle.setCollided();
                     mostrarPregunta();
                     obstacles.remove(obstacle);
                 }
@@ -223,25 +251,24 @@ public class ImagePanel extends JPanel{
 
     // Actualizar el método mostrarPregunta para usar el panel de vidas
     private void mostrarPregunta() {
-        Question question = questions.get(random.nextInt(questions.size()));
-        String[] opciones = question.getOpciones();
-        
-        int respuesta = JOptionPane.showOptionDialog(
-            this,
-            question.getPregunta(),
-            "¡Responde correctamente!",
-            JOptionPane.DEFAULT_OPTION,
-            JOptionPane.QUESTION_MESSAGE,
-            null,
-            opciones,
-            opciones[0]
+        Question question = questionM.getRandomQuestion();
+        QuestionPanel questionPanel = new QuestionPanel(
+            (JFrame) SwingUtilities.getWindowAncestor(this), 
+            question
         );
-
-        if (!question.checkAnswer(respuesta)) {
+        
+        int respuesta = questionPanel.showDialog();
+        
+        if (respuesta == -1 || !question.checkAnswer(respuesta)) {
             personaje.perderVida();
-            panelVida.setVidas(personaje.getVidas()); // Actualizar panel de vidas
+            panelVida.setVidas(personaje.getVidas());
             if (personaje.getVidas() <= 0) {
-                JOptionPane.showMessageDialog(this, "¡Juego terminado!");
+                JOptionPane.showMessageDialog(
+                    this, 
+                    "¡Juego terminado!", 
+                    "Fin del juego", 
+                    JOptionPane.INFORMATION_MESSAGE
+                );
                 System.exit(0);
             }
         }
@@ -322,11 +349,14 @@ public class ImagePanel extends JPanel{
     private static final int SPEED_INCREASE_INTERVAL = 5000; // 10 segundos
     
     private void updateGameSpeed() {
-        long currentTime = System.currentTimeMillis();
-        long elapsedTime = currentTime - gameStartTime;
+        if (isPaused) return;
         
-        // Aumentar la velocidad cada SPEED_INCREASE_INTERVAL milisegundos
-        float newSpeed = 1.0f + (elapsedTime / SPEED_INCREASE_INTERVAL) * SPEED_INCREMENT;
-        gameSpeed = Math.min(newSpeed, MAX_SPEED);
+        long currentTime = System.currentTimeMillis();
+        long elapsedTime = (currentTime - gameStartTime) / 1000; // Convertir a segundos
+        
+        float targetSpeed = 1.0f + (elapsedTime / 30) * SPEED_INCREMENT;
+        gameSpeed = Math.min(targetSpeed, MAX_SPEED);
+        
+        updateObstacleTimer();
     }
 }
